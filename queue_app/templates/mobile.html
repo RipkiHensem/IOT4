@@ -49,7 +49,7 @@
                 <div class="flex-1 text-center">
                     <h1 id="my-number" class="text-5xl font-bold text-slate-900 font-digital tracking-tight">--</h1>
                 </div>
-                <div id="qr-container" class="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 text-[10px] text-gray-400 font-medium overflow-hidden">
+                <div id="qr-container" onclick="bukaQRBesar()" class="cursor-pointer hover:scale-105 transition-transform w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 text-[10px] text-gray-400 font-medium overflow-hidden" title="Ketuk untuk memperbesar">
                     <span id="qr-placeholder">Belum ada</span>
                 </div>
             </div>
@@ -81,11 +81,34 @@
             </div>
         </div>
 
+        <div id="modal-qr" class="fixed inset-0 z-40 bg-slate-900/80 backdrop-blur-sm hidden flex-col justify-center items-center cursor-pointer transition-opacity" onclick="tutupQRBesar()">
+            <div class="bg-white p-5 rounded-3xl shadow-2xl flex flex-col items-center">
+                <h3 class="text-lg font-bold text-slate-800 mb-4 tracking-wide">Scan Tiket Anda</h3>
+                <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    <img id="img-qr-besar" src="" alt="QR Besar" class="w-[60vw] h-[60vw] max-w-[250px] max-h-[250px] object-cover rounded-xl">
+                </div>
+                <p class="text-xs text-slate-400 mt-5 font-medium">Ketuk di mana saja untuk menutup</p>
+            </div>
+        </div>
+
+        <div id="modal-terlewat" class="fixed inset-0 z-50 bg-red-900/90 backdrop-blur-md hidden flex-col justify-center items-center px-6 transition-opacity">
+            <div class="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center max-w-sm w-full border-4 border-red-500">
+                <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                    <span class="text-4xl">⚠️</span>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-800 mb-2">Waktu Habis!</h3>
+                <p class="text-slate-600 text-sm mb-8">
+                    Mohon maaf, giliran antrean Anda sudah terlewat. Silakan mendaftar dan mengambil nomor antrean yang baru.
+                </p>
+                <a href="/" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl shadow-lg transition active:scale-95 block">
+                    Kembali ke Pendaftaran
+                </a>
+            </div>
+        </div>
+
     </div>
 
     <script>
-
-        // Sekarang dia akan otomatis menyesuaikan diri! (Entah itu Localhost, IP WiFi, atau Ngrok)
         const API_BASE_URL = window.location.origin + '/api';
 
         const currentServedEl = document.getElementById('current-served'); 
@@ -95,10 +118,13 @@
         const qrContainerEl = document.getElementById('qr-container');
         const btnAmbilEl = document.getElementById('btn-ambil-tiket');
         const areaTombolAmbil = document.getElementById('area-tombol-ambil');
+        
+        const modalQr = document.getElementById('modal-qr');
+        const imgQrBesar = document.getElementById('img-qr-besar');
+        const modalTerlewat = document.getElementById('modal-terlewat'); // Panggil elemen modal terlewat
 
         function formatNumber(num) { return num.toString().padStart(3, '0'); }
 
-        // BACA URL
         const urlParams = new URLSearchParams(window.location.search);
         const tiketBawaanNomor = urlParams.get('nomor');
         const tiketBawaanKode = urlParams.get('kode');
@@ -108,7 +134,7 @@
             kodeUnikEl.innerText = tiketBawaanKode;
 
             const isiDataQR = `TIKET-${tiketBawaanNomor}-${tiketBawaanKode}`;
-            const urlGambarQR = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${isiDataQR}`;
+            const urlGambarQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${isiDataQR}`;
             qrContainerEl.innerHTML = `<img src="${urlGambarQR}" class="w-full h-full object-cover">`;
             
             if(areaTombolAmbil) areaTombolAmbil.style.display = 'none'; 
@@ -131,7 +157,7 @@
                     kodeUnikEl.innerText = kodeUnik;
                     
                     const isiDataQR = `TIKET-${nomorSaya}-${kodeUnik}`;
-                    const urlGambarQR = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${isiDataQR}`;
+                    const urlGambarQR = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${isiDataQR}`;
                     qrContainerEl.innerHTML = `<img src="${urlGambarQR}" class="w-full h-full object-cover">`;
 
                     btnAmbilEl.innerText = "✅ Tiket Berhasil Diambil";
@@ -147,10 +173,40 @@
                 const response = await fetch(`${API_BASE_URL}/antrean/status/`);
                 if (response.ok) {
                     const data = await response.json();
+                    
+                    // Update tampilan teks
                     if (currentServedEl) currentServedEl.innerText = formatNumber(data.antrean_sekarang);
                     if (waitingCountEl) waitingCountEl.innerText = data.sisa_menunggu;
+
+                    // --- LOGIKA CEK ANTREAN TERLEWAT ---
+                    const myNumStr = myNumberEl.innerText;
+                    if (myNumStr !== '--') {
+                        const angkaSaya = parseInt(myNumStr, 10);
+                        const angkaLayan = parseInt(data.antrean_sekarang, 10);
+                        
+                        // Jika angka yang dilayani admin LEBIH BESAR dari angka pengunjung
+                        if (angkaLayan > angkaSaya) {
+                            // Tampilkan Pop-Up Peringatan Merah!
+                            modalTerlewat.classList.remove('hidden');
+                            modalTerlewat.classList.add('flex');
+                        }
+                    }
                 }
             } catch (err) {}
+        }
+
+        function bukaQRBesar() {
+            const gambarKecil = qrContainerEl.querySelector('img');
+            if (gambarKecil) {
+                imgQrBesar.src = gambarKecil.src;
+                modalQr.classList.remove('hidden');
+                modalQr.classList.add('flex');
+            }
+        }
+
+        function tutupQRBesar() {
+            modalQr.classList.add('hidden');
+            modalQr.classList.remove('flex');
         }
 
         fetchStatus();

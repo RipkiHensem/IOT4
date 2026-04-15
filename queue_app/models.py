@@ -5,6 +5,7 @@ class Antrean(models.Model):
         ('MENUNGGU', 'Menunggu'),
         ('DIPANGGIL', 'Dipanggil'),
         ('SELESAI', 'Selesai'),
+        ('terlewat', 'Terlewat / Tidak Hadir'),
     )
     
     nomor_antrean = models.IntegerField()
