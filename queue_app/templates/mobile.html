@@ -65,6 +65,16 @@
             </button>
         </div>
 
+        <div id="call-timer" class="hidden mx-4 mt-4 bg-orange-500 text-white rounded-xl p-4 shadow-lg animate-bounce relative z-20">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="font-bold text-lg">GILIRAN ANDA!</p>
+                    <p class="text-xs opacity-90">Segera menuju loket dalam:</p>
+                </div>
+                <div class="text-4xl font-bold font-digital"><span id="mobile-timer">30</span>s</div>
+            </div>
+        </div>
+
         <div class="mx-5 mt-6 mb-6">
             <h3 class="font-bold text-gray-800 text-lg mb-1">Informasi Antrean Live</h3>
             <p class="text-xs text-gray-500 mb-4">Waktu Operasional: 10:00 - 23:59</p>
@@ -121,7 +131,13 @@
         
         const modalQr = document.getElementById('modal-qr');
         const imgQrBesar = document.getElementById('img-qr-besar');
-        const modalTerlewat = document.getElementById('modal-terlewat'); // Panggil elemen modal terlewat
+        const modalTerlewat = document.getElementById('modal-terlewat'); 
+
+        // TAMBAHAN: Variabel Timer Mobile
+        let mobileTimerInterval;
+        let mobileTimeLeft = 30;
+        const callTimerEl = document.getElementById('call-timer');
+        const mobileTimerText = document.getElementById('mobile-timer');
 
         function formatNumber(num) { return num.toString().padStart(3, '0'); }
 
@@ -168,25 +184,51 @@
             } catch (err) { alert("Server Django mati."); }
         }
 
+        // TAMBAHAN: Fungsi Mulai/Stop Timer Mobile
+        function startMobileTimer() {
+            if (mobileTimerInterval) return; // Jika sudah jalan, jangan mulai ulang
+            mobileTimeLeft = 30;
+            callTimerEl.classList.remove('hidden');
+            mobileTimerText.innerText = mobileTimeLeft;
+
+            mobileTimerInterval = setInterval(() => {
+                mobileTimeLeft--;
+                mobileTimerText.innerText = mobileTimeLeft;
+                
+                if (mobileTimeLeft <= 0) {
+                    clearInterval(mobileTimerInterval);
+                }
+            }, 1000);
+        }
+
+        function stopMobileTimer() {
+            callTimerEl.classList.add('hidden');
+            clearInterval(mobileTimerInterval);
+            mobileTimerInterval = null;
+        }
+
         async function fetchStatus() {
             try {
                 const response = await fetch(`${API_BASE_URL}/antrean/status/`);
                 if (response.ok) {
                     const data = await response.json();
                     
-                    // Update tampilan teks
                     if (currentServedEl) currentServedEl.innerText = formatNumber(data.antrean_sekarang);
                     if (waitingCountEl) waitingCountEl.innerText = data.sisa_menunggu;
 
-                    // --- LOGIKA CEK ANTREAN TERLEWAT ---
                     const myNumStr = myNumberEl.innerText;
                     if (myNumStr !== '--') {
                         const angkaSaya = parseInt(myNumStr, 10);
                         const angkaLayan = parseInt(data.antrean_sekarang, 10);
                         
-                        // Jika angka yang dilayani admin LEBIH BESAR dari angka pengunjung
+                        // TAMBAHAN: Logika Menjalankan Timer atau Lewat
+                        if (angkaLayan === angkaSaya) {
+                            startMobileTimer(); // Waktunya giliran pengunjung ini!
+                        } else {
+                            stopMobileTimer(); // Sembunyikan timer jika belum/sudah lewat
+                        }
+
                         if (angkaLayan > angkaSaya) {
-                            // Tampilkan Pop-Up Peringatan Merah!
                             modalTerlewat.classList.remove('hidden');
                             modalTerlewat.classList.add('flex');
                         }
